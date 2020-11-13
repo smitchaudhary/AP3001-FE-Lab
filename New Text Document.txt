@@ -1,0 +1,8 @@
+Parameters:
+
+min mesh size = 20
+epicenter = [600, -450, 0]
+k = 2*pi/100  => wavelength = 100
+sigma_squared = 5
+
+epicenter = [100, -500, 0]

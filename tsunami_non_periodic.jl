@@ -6,7 +6,7 @@ using CompScienceMeshes
 using LinearAlgebra
 using SparseArrays
 
-fn = joinpath(@__DIR__, "assets", "world.msh")
+fn = joinpath(@__DIR__, "assets", "accurate_world_10.msh")
 border = CompScienceMeshes.read_gmsh_mesh(fn, physical="Border", dimension=1)
 coast  = CompScienceMeshes.read_gmsh_mesh(fn, physical="Coast", dimension=1)
 sea    = CompScienceMeshes.read_gmsh_mesh(fn, physical="Sea", dimension=2)
@@ -80,7 +80,7 @@ end
 
 function assemblematrix(mesh, active_vertices)
     n = length(active_vertices)
-    S = zeros(n,n)
+    S = complex(zeros(n,n))
     gl = localtoglobal(active_vertices, mesh)
     for (k,element) in enumerate(mesh)
         Sel = elementmatrix(mesh, element)
@@ -103,7 +103,7 @@ function elementvector(f, mesh, element)
     v1 = mesh.vertices[element[1]]
     v2 = mesh.vertices[element[2]]
     v3 = mesh.vertices[element[3]]
-    normal = (v1-v3)*(v2-v3)
+    normal = (v1-v3) × (v2-v3)
     area = 0.5*norm(normal)
     F = area * [
         f(v1)/3
@@ -153,10 +153,10 @@ end
 
 function assemblematrix_boundary(mesh, active_vertices)
     n = length(active_vertices)
-    T = zeros(n,n)
+    T = complex(zeros(n,n))
     gl = localtoglobal(active_vertices, mesh)
     for (k,element) in enumerate(mesh)
-        Sel = elementmatrix(mesh, element)
+        Sel = elementmatrix_boundary(mesh, element)
         for p in 1:2
             i = gl(k,p)
             i == nothing && continue
@@ -172,20 +172,38 @@ function assemblematrix_boundary(mesh, active_vertices)
 end
 
 function f(x)
-    return exp(-100*norm(x)^2)
+    x_0 = [600, -450, 0]
+    a = 1
+    sigma_squared = 400
+    dx = x - x_0
+
+    return a*exp(-(norm(dx)^2)/sigma_squared)
 end
 
-k = 2*pi/4000
+k = 2*pi/50
 
 S = complex(assemblematrix(sea, interior_vertices))
 F = complex(assemblevector(f, sea, interior_vertices))
 T = complex(assemblematrix_boundary(border, interior_vertices))
-u = S \ F
+u = (S+T) \ F
 
-u_tilda = zeros(length(sea_vertices))
+u_tilda = complex(zeros(length(sea_vertices)))
 for (j,m) in enumerate(interior_vertices)
     u_tilda[m[1]] = u[j]
 end
 
 using Makie
-Makie.mesh(vertexarray(sea), cellarray(sea), color=u_tilda)
+scene = Makie.mesh(vertexarray(sea), cellarray(sea), color=real(u_tilda))
+
+clr = colorlegend(
+    scene[end],
+    raw = true,
+    camera = campixel!,
+
+    width = (
+        30,
+        560
+    )
+)
+
+plot = vbox(scene, clr)
